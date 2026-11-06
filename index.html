@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#17566c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>ساحل الدرفت: حرب</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;800&display=swap">
+<style>
+:root{--bg:#1f6f8b;--ink:#f6f1e4;--ac:#ff7a1a;--pn:rgba(14,19,30,.82);--ln:rgba(255,255,255,.2);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17566c}}
+:root[data-theme="dark"]{--bg:#17566c}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:"Cairo",system-ui,sans-serif;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{position:fixed;inset:0}
+.b{background:var(--pn);color:var(--ink);border:1px solid var(--ln);border-radius:14px;font:800 14px "Cairo",system-ui,sans-serif;padding:10px 12px}
+.b:active,.b.on{background:var(--ac);color:#1a1208}
+#top{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:8px;right:8px;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+#hud{background:var(--pn);border:1px solid var(--ln);border-radius:14px;padding:6px 12px;font-weight:800;line-height:1.5}
+#hud small{font-weight:500}
+#btns{display:flex;gap:6px}
+#pad{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;justify-content:space-between;padding:0 14px;direction:ltr;pointer-events:none}
+#pad>div{display:flex;gap:8px;pointer-events:auto}
+#pad .b{width:52px;height:60px;font-size:22px;padding:0}
+#pad .f{background:#c4321f;font-size:24px}
+#toast{position:fixed;top:30%;left:0;right:0;text-align:center;font-weight:800;font-size:24px;text-shadow:0 2px 8px #000;pointer-events:none;opacity:0;transition:opacity .25s}
+.ov{position:fixed;inset:0;background:rgba(8,12,20,.92);display:none;overflow:auto;padding:calc(18px + env(safe-area-inset-top,0px)) 16px 24px}
+.ov h2{margin:0 0 6px}.ov p{margin:6px 0;line-height:1.6}
+.cd{border:1px solid var(--ln);border-radius:14px;padding:12px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sw{display:inline-block;width:34px;height:34px;border-radius:50%;margin:4px;border:3px solid transparent}.sw.on{border-color:#fff}
+textarea{width:100%;height:70px;box-sizing:border-box;background:#0d121c;color:var(--ink);border:1px solid var(--ln);border-radius:10px;padding:8px;font:12px monospace;direction:ltr}
+.ov .b{margin:4px 0;width:100%}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="top">
+  <div id="hud"><span id="coins">0</span> عملة · <span id="spd">0</span> كم/س<br><small id="drf"></small></div>
+  <div id="btns"><button class="b" id="bNet">صديق</button><button class="b" id="bGar">المرآب</button></div>
+</div>
+<div id="toast"></div>
+<div id="pad">
+  <div><button class="b" data-k="l">◀</button><button class="b" data-k="r">▶</button><button class="b" data-k="brk">▼</button></div>
+  <div><button class="b" data-k="hb" style="font-size:12px">درفت</button><button class="b f" data-k="fire">🔥</button><button class="b" data-k="gas">▲</button></div>
+</div>
+<div class="ov" id="gar"><h2>المرآب</h2><div id="gl"></div><button class="b" id="gx">متابعة</button></div>
+<div class="ov" id="net"><h2>اللعب مع صديق</h2>
+<p>الاتصال مباشر بين الهاتفين عبر الإنترنت أو الواي فاي نفسه (ليس بلوتوث). تبادلا الكودين عبر واتساب أو أي تطبيق.</p>
+<button class="b" id="n1">1) أنا المضيف: أنشئ كودي</button>
+<button class="b" id="n2">2) أنا الضيف: الصق كود المضيف في الأسفل ثم اضغط هنا</button>
+<button class="b" id="n3">3) المضيف: الصق رد الضيف في الأسفل ثم اضغط هنا</button>
+<p>الكود الذي ترسله:</p><textarea id="out" readonly></textarea><button class="b" id="cp">نسخ الكود</button>
+<p>الكود الذي استلمته:</p><textarea id="inp"></textarea>
+<p id="ns">غير متصل. أنت تقاتل بوت الآن.</p>
+<button class="b" id="nx">رجوع للعبة</button></div>
+<script>
+const $=id=>document.getElementById(id),cv=$("c"),g=cv.getContext("2d");
+const R=640,RW=170,N=8,W=R*N;
+const CARS=[{n:"سبارك",max:420,acc:300,grip:7.5,price:0},{n:"بلازا",max:520,acc:340,grip:6.2,price:350},{n:"فانتوم",max:640,acc:420,grip:5.2,price:900}];
+const COLS=["#ff7a1a","#e63946","#2ec4b6","#ffd23f","#7b6cff","#f6f1e4"];
+let st={coins:0,owned:[0],sel:0,col:0};
+try{const s=localStorage.getItem("dc2");if(s)st=Object.assign(st,JSON.parse(s))}catch(e){}
+const save=()=>{try{localStorage.setItem("dc2",JSON.stringify(st))}catch(e){}};
+let VW,VH,D=1;
+function rs(){D=devicePixelRatio||1;VW=innerWidth;VH=innerHeight;cv.width=VW*D;cv.height=VH*D;cv.style.width=VW+"px";cv.style.height=VH+"px"}
+addEventListener("resize",rs);rs();
+const h=(i,j,k)=>{const n=Math.sin(i*127.1+j*311.7+k*74.7)*43758.5453;return n-Math.floor(n)};
+const onRoad=(x,y)=>{const a=((x%R)+R)%R,b=((y%R)+R)%R,e=RW/2;return a<e||a>R-e||b<e||b>R-e};
+const rsp=()=>({x:(1+Math.floor(Math.random()*(N-1)))*R,y:(1+Math.floor(Math.random()*(N-1)))*R+30});
+const car={x:R*3,y:R*3+30,a:0,vx:0,vy:0,hp:100,dead:0,fc:0};
+const foe={x:R*5,y:R*5,a:Math.PI,vx:0,vy:0,hp:100,bot:true,col:1,tx:R*5,ty:R*5,ta:Math.PI,cd:0};
+const cam={x:car.x,y:car.y};
+let coins=[],marks=[],bul=[],combo=0,idle=0,tt=0,sc={me:0,foe:0};
+for(let i=0;i<120;i++){const k=Math.floor(Math.random()*(N+1))*R,t=200+Math.random()*(W-400);coins.push(Math.random()<.5?{x:k,y:t}:{x:t,y:k})}
+const K={},KM={ArrowUp:"gas",w:"gas",ArrowDown:"brk",s:"brk",ArrowLeft:"l",a:"l",ArrowRight:"r",d:"r"," ":"hb",f:"fire"};
+addEventListener("keydown",e=>{if(KM[e.key])K[KM[e.key]]=1});addEventListener("keyup",e=>{if(KM[e.key])K[KM[e.key]]=0});
+document.querySelectorAll("#pad .b").forEach(b=>{const k=b.dataset.k;
+  b.addEventListener("pointerdown",e=>{K[k]=1;b.classList.add("on");b.setPointerCapture(e.pointerId)});
+  ["pointerup","pointercancel","lostpointercapture"].forEach(v=>b.addEventListener(v,()=>{K[k]=0;b.classList.remove("on")}))});
+let tm;function toast(t){const e=$("toast");e.textContent=t;e.style.opacity=1;clearTimeout(tm);tm=setTimeout(()=>e.style.opacity=0,1700)}
+function garage(){$("gl").innerHTML="<p>عملاتك: "+st.coins+"</p>"+CARS.map((c,i)=>{const o=st.owned.includes(i);
+  return `<div class="cd"><div><b>${c.n}</b><br><small>السرعة ${Math.round(c.max/6.4)}%</small></div><button class="b ${st.sel===i?"on":""}" style="width:auto" onclick="pick(${i})">${st.sel===i?"مختارة":o?"اختيار":"شراء "+c.price}</button></div>`}).join("")+
+  "<div>"+COLS.map((c,i)=>`<span class="sw ${st.col===i?"on":""}" style="background:${c}" onclick="st.col=${i};save();garage()"></span>`).join("")+"</div>"}
+window.pick=i=>{if(!st.owned.includes(i)){if(st.coins<CARS[i].price){toast("عملات غير كافية");return}st.coins-=CARS[i].price;st.owned.push(i)}st.sel=i;save();garage()};
+$("bGar").onclick=()=>{garage();$("gar").style.display="block"};$("gx").onclick=()=>$("gar").style.display="none";
+$("bNet").onclick=()=>$("net").style.display="block";$("nx").onclick=()=>$("net").style.display="none";
+function phys(o,i,c,dt){
+  const fx=Math.cos(o.a),fy=Math.sin(o.a),rx=-fy,ry=fx;
+  let vf0=o.vx*fx+o.vy*fy,vl0=o.vx*rx+o.vy*ry,vf=vf0,vl=vl0;
+  const off=!onRoad(o.x,o.y),mx=c.max*(off?.55:1);
+  if(i.gas&&vf<mx)vf+=c.acc*dt*(off?.7:1);
+  if(i.brk)vf-=(vf>0?c.acc*1.7:c.acc*.6)*dt;
+  if(vf<-130)vf=-130;
+  vf*=1-(off?1.1:.3)*dt;
+  let gr=i.hb?1.1:c.grip;if(i.gas&&i.s&&vf>c.max*.6)gr*=.55;
+  vl*=Math.exp(-gr*dt);
+  o.vx+=fx*(vf-vf0)+rx*(vl-vl0);o.vy+=fy*(vf-vf0)+ry*(vl-vl0);
+  o.a+=i.s*2.7*dt*Math.max(-1,Math.min(1,vf/200))*(1-Math.min(Math.abs(vf)/c.max,1)*.35)*(i.hb?1.5:1);
+  o.x+=o.vx*dt;o.y+=o.vy*dt;
+  if(o.x<150||o.x>W-150){o.x=Math.max(150,Math.min(W-150,o.x));o.vx*=-.4}
+  if(o.y<150||o.y>W-150){o.y=Math.max(150,Math.min(W-150,o.y));o.vy*=-.4}
+  return {sp:Math.hypot(o.vx,o.vy),slip:Math.abs(vl)};
+}
+function shoot(o,own,dmg){const vx=o.vx+Math.cos(o.a)*950,vy=o.vy+Math.sin(o.a)*950,x=o.x+Math.cos(o.a)*50,y=o.y+Math.sin(o.a)*50;
+  bul.push({x,y,vx,vy,t:1.1,own,dmg});if(own)snd({t:"f",x,y,vx,vy})}
+// networking
+let pc,dc;const ICE={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
+const snd=o=>{if(dc&&dc.readyState==="open")dc.send(JSON.stringify(o))};
+const ns=t=>$("ns").textContent=t;
+function mk(){pc=new RTCPeerConnection(ICE);pc.onconnectionstatechange=()=>ns("حالة الاتصال: "+pc.connectionState)}
+const wait=()=>new Promise(r=>{if(pc.iceGatheringState==="complete")return r();pc.addEventListener("icegatheringstatechange",()=>{if(pc.iceGatheringState==="complete")r()});setTimeout(r,3500)});
+function chan(ch){dc=ch;
+  ch.onopen=()=>{foe.bot=false;foe.hp=100;sc={me:0,foe:0};bul=[];$("net").style.display="none";toast("تم الاتصال! قاتل صديقك");ns("متصل")};
+  ch.onclose=()=>{foe.bot=true;foe.hp=100;toast("انقطع الاتصال، عاد البوت");ns("انقطع الاتصال")};
+  ch.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
+    if(m.t==="s"){foe.tx=m.x;foe.ty=m.y;foe.ta=m.a;foe.hp=m.h;foe.col=m.c}
+    else if(m.t==="f")bul.push({x:m.x,y:m.y,vx:m.vx,vy:m.vy,t:1.1,own:false,dmg:12});
+    else if(m.t==="k"){sc.me++;toast("أسقطت صديقك!")}}}
+$("n1").onclick=async()=>{try{mk();chan(pc.createDataChannel("g"));await pc.setLocalDescription(await pc.createOffer());ns("جارٍ إنشاء الكود...");await wait();$("out").value=btoa(JSON.stringify(pc.localDescription));ns("أرسل الكود لصديقك ثم الصق رده في الأسفل واضغط 3")}catch(e){ns("خطأ: "+e.message)}};
+$("n2").onclick=async()=>{try{mk();pc.ondatachannel=e=>chan(e.channel);await pc.setRemoteDescription(JSON.parse(atob($("inp").value.trim())));await pc.setLocalDescription(await pc.createAnswer());ns("جارٍ إنشاء الرد...");await wait();$("out").value=btoa(JSON.stringify(pc.localDescription));ns("أرسل هذا الرد للمضيف وانتظر")}catch(e){ns("كود غير صالح: "+e.message)}};
+$("n3").onclick=async()=>{try{await pc.setRemoteDescription(JSON.parse(atob($("inp").value.trim())));ns("جارٍ الاتصال...")}catch(e){ns("كود غير صالح: "+e.message)}};
+$("cp").onclick=()=>{const o=$("out");o.select();try{navigator.clipboard.writeText(o.value)}catch(e){document.execCommand("copy")}toast("تم النسخ")};
+// game loop
+let nt=0;
+function step(dt){
+  const c=CARS[st.sel];let sp=0;
+  if(car.dead>0){car.dead-=dt;if(car.dead<=0){Object.assign(car,rsp(),{hp:100,vx:0,vy:0,dead:0})}}
+  else{
+    const r=phys(car,{gas:K.gas,brk:K.brk,hb:K.hb,s:(K.r?1:0)-(K.l?1:0)},c,dt);sp=r.sp;
+    car.fc-=dt;if(K.fire&&car.fc<=0){car.fc=.28;shoot(car,true,12)}
+    if(r.slip>110&&r.sp>180){combo+=r.slip*dt*.12;idle=0;marks.push({x:car.x,y:car.y,a:car.a});if(marks.length>350)marks.shift()}
+    else{idle+=dt;if(idle>1&&combo>0){st.coins+=Math.max(1,Math.floor(combo/10));save();combo=0}}
+    for(let i=coins.length-1;i>=0;i--)if(Math.hypot(coins[i].x-car.x,coins[i].y-car.y)<45){coins.splice(i,1);st.coins+=5;car.hp=Math.min(100,car.hp+10);{const k=Math.floor(Math.random()*(N+1))*R,t=200+Math.random()*(W-400);coins.push(Math.random()<.5?{x:k,y:t}:{x:t,y:k})}save()}
+  }
+  if(foe.bot){
+    const dx=car.x-foe.x,dy=car.y-foe.y,d=Math.hypot(dx,dy);let da=Math.atan2(dy,dx)-foe.a;da=Math.atan2(Math.sin(da),Math.cos(da));
+    phys(foe,{gas:d>230?1:0,brk:0,hb:0,s:Math.abs(da)<.08?0:da>0?1:-1},{max:380,acc:280,grip:7},dt);
+    foe.cd-=dt;if(car.dead<=0&&Math.abs(da)<.22&&d<750&&foe.cd<=0){foe.cd=.7;shoot(foe,false,9)}
+  }else{foe.x+=(foe.tx-foe.x)*Math.min(1,dt*12);foe.y+=(foe.ty-foe.y)*Math.min(1,dt*12);let da=foe.ta-foe.a;da=Math.atan2(Math.sin(da),Math.cos(da));foe.a+=da*Math.min(1,dt*12)}
+  for(let i=bul.length-1;i>=0;i--){const b=bul[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.t-=dt;let hit=false;
+    if(b.own){if(foe.hp>0&&Math.hypot(b.x-foe.x,b.y-foe.y)<42){hit=true;if(foe.bot){foe.hp-=b.dmg;if(foe.hp<=0){sc.me++;toast("أسقطت البوت!");Object.assign(foe,rsp(),{hp:100,vx:0,vy:0})}}}}
+    else if(car.dead<=0&&Math.hypot(b.x-car.x,b.y-car.y)<42){hit=true;car.hp-=b.dmg;
+      if(car.hp<=0){car.dead=2.2;combo=0;if(foe.bot)sc.foe++;else{sc.foe++;snd({t:"k"})}toast("تم إسقاطك")}}
+    if(hit||b.t<=0)bul.splice(i,1)}
+  nt-=dt;if(nt<=0){nt=.066;snd({t:"s",x:car.x,y:car.y,a:car.a,h:car.dead>0?0:car.hp,c:st.col})}
+  cam.x+=(car.x+car.vx*.25-cam.x)*Math.min(1,dt*5);cam.y+=(car.y+car.vy*.25-cam.y)*Math.min(1,dt*5);
+  $("spd").textContent=Math.round(sp*.3);$("coins").textContent=st.coins;
+  $("drf").textContent="❤ "+Math.max(0,Math.round(car.hp))+" · أنت "+sc.me+" : "+sc.foe+(foe.bot?" البوت":" الصديق")+(combo>0?" · درفت "+Math.floor(combo):"");
+  return Math.min(1,sp/c.max);
+}
+function body(o,col,lbl){g.save();g.translate(o.x,o.y);g.rotate(o.a);
+  g.fillStyle="rgba(0,0,0,.3)";g.fillRect(-42,-18,90,48);g.fillStyle=col;g.beginPath();g.roundRect(-44,-22,90,44,12);g.fill();
+  g.fillStyle="#111823";g.beginPath();g.roundRect(-8,-17,28,34,6);g.fill();
+  g.fillStyle="#f6f1e4";g.fillRect(40,-18,5,9);g.fillRect(40,9,5,9);g.fillStyle="#e63946";g.fillRect(-45,-18,4,9);g.fillRect(-45,9,4,9);g.restore();
+  g.fillStyle="rgba(0,0,0,.55)";g.fillRect(o.x-40,o.y-62,80,9);g.fillStyle=o.hp>35?"#4cd964":"#e63946";g.fillRect(o.x-39,o.y-61,78*Math.max(0,o.hp)/100,7)}
+function draw(z){
+  g.setTransform(D,0,0,D,0,0);g.fillStyle="#1f6f8b";g.fillRect(0,0,VW,VH);
+  const s=Math.min(VW,VH)/760*(1-z*.25),hw=VW/2/s,hh=VH/2/s;
+  g.setTransform(D*s,0,0,D*s,D*VW/2,D*VH/2);g.translate(-cam.x,-cam.y);
+  g.fillStyle="#e3d3a0";g.fillRect(-60,-60,W+120,W+120);
+  const vis=(x,y,w,q)=>x+w>cam.x-hw&&x<cam.x+hw&&y+q>cam.y-hh&&y<cam.y+hh,pal=["#c9b79c","#b5654a","#8d99ae","#d9b382"];
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++){const x=i*R+RW/2,y=j*R+RW/2,w=R-RW;if(!vis(x,y,w,w))continue;
+    g.fillStyle=h(i,j,1)>.45?"#6f9b5a":"#d4c48e";g.fillRect(x,y,w,w);
+    for(let k=0;k<3;k++){const bw=110+h(i,j,k+2)*110,bh=110+h(i,j,k+5)*110,bx=x+30+h(i,j,k+8)*(w-bw-60),by=y+30+h(i,j,k+11)*(w-bh-60);
+      g.fillStyle="rgba(0,0,0,.22)";g.fillRect(bx+8,by+10,bw,bh);g.fillStyle=pal[Math.floor(h(i,j,k+14)*4)];g.fillRect(bx,by,bw,bh)}}
+  g.strokeStyle="#2b303d";g.lineWidth=RW;g.beginPath();
+  for(let i=0;i<=N;i++){g.moveTo(i*R,0);g.lineTo(i*R,W);g.moveTo(0,i*R);g.lineTo(W,i*R)}g.stroke();
+  g.strokeStyle="#e9e2c8";g.lineWidth=5;g.setLineDash([40,50]);g.stroke();g.setLineDash([]);
+  g.fillStyle="rgba(10,10,14,.35)";for(const m of marks){g.save();g.translate(m.x,m.y);g.rotate(m.a);g.fillRect(-34,-20,12,6);g.fillRect(-34,14,12,6);g.restore()}
+  g.fillStyle="#ffd23f";g.strokeStyle="#b8860b";g.lineWidth=4;
+  for(const c of coins){if(!vis(c.x-20,c.y-20,40,40))continue;g.beginPath();g.arc(c.x,c.y,16,0,7);g.fill();g.stroke()}
+  if(foe.hp>0)body(foe,COLS[foe.col%6],"");
+  if(car.dead<=0)body(car,COLS[st.col],"");
+  g.fillStyle="#fff3a0";for(const b of bul){g.beginPath();g.arc(b.x,b.y,8,0,7);g.fill()}
+}
+let last=performance.now();
+function loop(n){const dt=Math.min(.033,(n-last)/1000);last=n;tt+=dt;draw(step(dt));requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+toast("🔥 للإطلاق · زر «صديق» للعب أونلاين");
+if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+</script>
+</body>
+</html>
